@@ -1,0 +1,21 @@
+{
+  "name": "@llm-html-kit/core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run tests/"
+  },
+  "dependencies": {
+    "@dqbd/tiktoken": "^1.0.15",
+    "css-tree": "^3.0.0",
+    "node-html-parser": "^6.1.13"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "@types/css-tree": "^2.3.8",
+    "@llm-html-kit/stylesheet": "workspace:*"
+  }
+}
