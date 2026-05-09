@@ -6,4 +6,5 @@ export interface PromptOptions {
   includeVocabularyReference?: boolean;
   maxVocabularyTokens?: number;
   htmlWrapperInstruction?: boolean;
+  includeExample?: boolean;
 }

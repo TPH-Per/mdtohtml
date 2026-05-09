@@ -64,51 +64,68 @@ export async function validateHTML(
     }
   }
 
-  // Check for <style> blocks
+  // Check <style> blocks
   if (rules.noInlineStyles !== false) {
-    const styleBlocks = root.querySelectorAll('style');
-    for (const style of styleBlocks) {
-      const offset = html.indexOf(style.outerHTML);
-      const { line, column } = offsetToLineCol(html, offset);
+    let searchFrom = 0;
+    const styleBlockRE = /<style[^>]*>[\s\S]*?<\/style>/gi;
+    for (const m of html.matchAll(styleBlockRE)) {
+      const { line, column } = offsetToLineCol(html, m.index ?? 0);
       errors.push({
         type: 'inline-style',
-        line,
+        line, 
         column,
-        message: 'Found <style> block, which is forbidden.',
-        snippet: style.toString().substring(0, 50) + '...'
+        message: 'Found <style> block. Use external stylesheet instead.',
+        snippet: m[0].slice(0, 60) + (m[0].length > 60 ? '...' : ''),
       });
     }
   }
 
-  // Walk elements for style="" and class=""
+  // Check style="" attributes using regex on raw HTML (not DOM traversal)
+  if (rules.noInlineStyles !== false) {
+    const inlineStyleRE = /style\s*=\s*(?:"[^"]*"|'[^']*')/gi;
+    for (const m of html.matchAll(inlineStyleRE)) {
+      const { line, column } = offsetToLineCol(html, m.index ?? 0);
+      // Find enclosing tag for snippet
+      const tagStart = html.lastIndexOf('<', m.index);
+      const tagEnd = html.indexOf('>', m.index ?? 0) + 1;
+      const snippet = html.slice(Math.max(0, tagStart), Math.min(html.length, tagEnd));
+      errors.push({
+        type: 'inline-style',
+        line, 
+        column,
+        message: 'Found inline style attribute.',
+        snippet,
+      });
+    }
+  }
+
+  // Check classes via AST
   const elements = root.querySelectorAll('*');
   const allowedClasses = Array.isArray(rules.allowedClasses) 
     ? new Set(rules.allowedClasses) 
     : new Set(contract.classes);
 
-  for (const el of elements) {
-    // Check style=""
-    if (rules.noInlineStyles !== false && el.hasAttribute('style')) {
-      const offset = html.indexOf(el.outerHTML);
-      const { line, column } = offsetToLineCol(html, offset);
-      errors.push({
-        type: 'inline-style',
-        line,
-        column,
-        message: 'Found inline style attribute.',
-        snippet: `<${el.tagName} style="${el.getAttribute('style')}">`
-      });
-    }
-
-    // Check classes
-    if (rules.allowedClasses !== undefined && el.hasAttribute('class')) {
-      const classAttr = el.getAttribute('class') || '';
-      const classes = classAttr.split(/\s+/).filter(Boolean);
-      for (const cls of classes) {
-        if (!allowedClasses.has(cls)) {
-          warnings.push({
-            message: `Unknown class '${cls}' found on <${el.rawTagName}>`
-          });
+  if (rules.allowedClasses !== undefined || rules.noTailwindClasses) {
+    for (const el of elements) {
+      if (el.hasAttribute('class')) {
+        const classAttr = el.getAttribute('class') || '';
+        const classes = classAttr.split(/\s+/).filter(Boolean);
+        
+        for (const cls of classes) {
+          if (rules.allowedClasses !== undefined && !allowedClasses.has(cls)) {
+            warnings.push({
+              message: `Unknown class '${cls}' found on <${el.rawTagName}>`
+            });
+          }
+          
+          if (rules.noTailwindClasses) {
+            const tailwindRE = /^(text|bg|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|w|h|flex|grid|gap|rounded|shadow|border|ring|opacity|font|leading|tracking|z|top|right|bottom|left|inset|overflow|cursor|pointer|select|resize|appearance|outline|sr)-/;
+            if (tailwindRE.test(cls) && !allowedClasses.has(cls)) {
+              warnings.push({
+                message: `Possible Tailwind class '${cls}' on <${el.rawTagName}> — use contract classes instead`
+              });
+            }
+          }
         }
       }
     }

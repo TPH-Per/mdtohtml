@@ -59,7 +59,7 @@ export async function loadContract(stylesheetPath: string): Promise<CSSContract>
   };
 }
 
-function groupClassesByCategory(classes: string[]): string {
+export function groupClassesByCategory(classes: string[]): string {
   const categories: Record<string, string[]> = {
     Layout: [],
     Typography: [],
@@ -91,10 +91,13 @@ export function vocabularyToPromptFragment(contract: CSSContract, maxTokens?: nu
   let fragment = `Available CSS classes (use these, never write inline styles):\n${lines}`;
 
   if (maxTokens) {
-    // Rough estimate: 4 chars per token
-    const maxChars = maxTokens * 4;
+    const maxChars = maxTokens * 4; // 1 token ≈ 4 chars for CSS class names
     if (fragment.length > maxChars) {
-      fragment = fragment.slice(0, maxChars) + '... (truncated)';
+      // Truncate at last newline boundary to avoid cutting mid-word
+      const truncated = fragment.slice(0, maxChars);
+      const lastNewline = truncated.lastIndexOf('\n');
+      fragment = (lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated)
+        + '\n... (vocabulary truncated — increase maxVocabularyTokens)';
     }
   }
 

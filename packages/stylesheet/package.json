@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "main": "dist/styles.css",
   "scripts": {
-    "build": "postcss src/index.css -o dist/styles.css"
+    "build": "postcss src/index.css -o dist/styles.css --use postcss-import && npx tsx scripts/generate-vocabulary.ts"
   },
   "devDependencies": {
     "postcss": "^8.4.38",
     "postcss-import": "^16.1.0",
     "postcss-minify": "^1.1.0",
-    "postcss-cli": "^11.0.0"
+    "postcss-cli": "^11.0.0",
+    "tsx": "^4.7.1"
   }
 }

@@ -1,6 +1,18 @@
 import http from 'http';
 import fs from 'fs/promises';
 import path from 'path';
+import chokidar from 'chokidar';
+import { WebSocketServer, WebSocket } from 'ws';
+
+const INJECT_SCRIPT = `
+<script>
+  const ws = new WebSocket('ws://' + location.host);
+  ws.onmessage = (msg) => {
+    if (msg.data === 'reload') window.location.reload();
+  };
+</script>
+</body>
+`;
 
 export async function serveCommand(options: { dir: string; port: number }) {
   const port = options.port || 3000;
@@ -15,10 +27,15 @@ export async function serveCommand(options: { dir: string; port: number }) {
         filePath = path.join(filePath, 'index.html');
       }
 
-      const content = await fs.readFile(filePath);
+      let content = await fs.readFile(filePath, 'utf-8');
       let contentType = 'text/html';
+      
       if (filePath.endsWith('.css')) contentType = 'text/css';
-      if (filePath.endsWith('.js')) contentType = 'text/javascript';
+      else if (filePath.endsWith('.js')) contentType = 'text/javascript';
+
+      if (contentType === 'text/html') {
+        content = content.replace('</body>', INJECT_SCRIPT);
+      }
 
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(content, 'utf-8');
@@ -33,7 +50,24 @@ export async function serveCommand(options: { dir: string; port: number }) {
     }
   });
 
+  const wss = new WebSocketServer({ server });
+  
+  const watcher = chokidar.watch(dir, {
+    ignored: /(^|[\/\\])\../,
+    persistent: true
+  });
+
+  watcher.on('change', path => {
+    console.log(`File changed: ${path}`);
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send('reload');
+      }
+    });
+  });
+
   server.listen(port, () => {
     console.log(`Serving ${dir} on http://localhost:${port}`);
+    console.log(`Watching for file changes...`);
   });
 }

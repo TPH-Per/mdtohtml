@@ -1,10 +1,52 @@
-import { encoding_for_model, TiktokenModel } from '@dqbd/tiktoken';
+import { get_encoding } from '@dqbd/tiktoken';
 
 export interface TokenCount {
   raw: number;
   structure: number;
   style: number;
   savings: number;
+}
+
+// Singleton — one encoder per process lifetime
+let _enc: ReturnType<typeof get_encoding> | null = null;
+
+function encoder() {
+  if (!_enc) {
+    _enc = get_encoding('cl100k_base');
+    // Free WASM memory when Node exits
+    process.on('exit', () => { _enc?.free(); });
+  }
+  return _enc;
+}
+
+function countWithTiktoken(s: string): number {
+  return encoder().encode(s).length;
+}
+
+/**
+ * @param html     Raw HTML string to analyze
+ * @param encoding 'cl100k_base' (OpenAI/Anthropic), 'gemini' (char-based estimate)
+ */
+export async function countTokens(
+  html: string,
+  encoding: 'cl100k_base' | 'gemini' = 'cl100k_base'
+): Promise<TokenCount> {
+  const count = encoding === 'gemini'
+    ? (s: string) => Math.ceil(s.length / 4)
+    : countWithTiktoken;
+
+  const raw = count(html);
+
+  // Collect all style noise: <style>...</style> and style="..." attributes
+  let styleTokens = 0;
+  const styleBlockRE = /<style[^>]*>[\s\S]*?<\/style>/gi;
+  const styleAttrRE  = / style\s*=\s*(?:"[^"]*"|'[^']*')/gi;
+
+  for (const m of html.matchAll(styleBlockRE)) styleTokens += count(m[0]);
+  for (const m of html.matchAll(styleAttrRE))  styleTokens += count(m[0]);
+
+  const structure = Math.max(0, raw - styleTokens);
+  return { raw, structure, style: styleTokens, savings: styleTokens };
 }
 
 export interface TokenDiff {
@@ -14,64 +56,20 @@ export interface TokenDiff {
   savingsPercent: number;
 }
 
-export async function countTokens(html: string, encoding: string = 'cl100k_base'): Promise<TokenCount> {
-  let enc: any = null;
-  let countFn: (str: string) => number;
-  
-  if (encoding === 'gemini') {
-    countFn = (str: string) => Math.ceil(str.length / 4);
-  } else {
-    // defaults to cl100k_base
-    enc = encoding_for_model('gpt-3.5-turbo' as TiktokenModel);
-    countFn = (str: string) => enc.encode(str).length;
-  }
-
-  try {
-    const raw = countFn(html);
-    
-    // Basic parsing for <style> blocks and style="" attributes
-    let styleTokens = 0;
-    
-    // Find <style> blocks
-    const styleBlockRegex = /<style[^>]*>[\s\S]*?<\/style>/gi;
-    let match;
-    while ((match = styleBlockRegex.exec(html)) !== null) {
-      styleTokens += countFn(match[0]);
-    }
-    
-    // Find style="" attributes
-    const styleAttrRegex = /style\s*=\s*["'][^"']*["']/gi;
-    while ((match = styleAttrRegex.exec(html)) !== null) {
-      styleTokens += countFn(match[0]);
-    }
-
-    const structure = raw - styleTokens;
-    const savings = styleTokens; // All inline styles could potentially be saved
-
-    return {
-      raw,
-      structure: structure > 0 ? structure : 0,
-      style: styleTokens,
-      savings
-    };
-  } finally {
-    if (enc) {
-      enc.free();
-    }
-  }
-}
-
-export async function compareTokens(beforeHTML: string, afterHTML: string, encoding: string = 'cl100k_base'): Promise<TokenDiff> {
-  const before = await countTokens(beforeHTML, encoding);
-  const after = await countTokens(afterHTML, encoding);
-  
-  const savingsTokens = before.raw - after.raw;
-  const savingsPercent = before.raw > 0 ? (savingsTokens / before.raw) * 100 : 0;
-  
+export async function compareTokens(
+  beforeHtml: string,
+  afterHtml: string,
+  encoding: 'cl100k_base' | 'gemini' = 'cl100k_base'
+): Promise<TokenDiff> {
+  const [b, a] = await Promise.all([
+    countTokens(beforeHtml, encoding),
+    countTokens(afterHtml, encoding),
+  ]);
+  const saved = b.raw - a.raw;
   return {
-    before,
-    after,
-    savingsTokens,
-    savingsPercent
+    before: b,
+    after: a,
+    savingsTokens: saved,
+    savingsPercent: b.raw > 0 ? Math.round((saved / b.raw) * 100) : 0,
   };
 }
