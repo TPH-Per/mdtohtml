@@ -59,17 +59,44 @@ export async function loadContract(stylesheetPath: string): Promise<CSSContract>
   };
 }
 
-export function vocabularyToPromptFragment(contract: CSSContract, maxTokens?: number): string {
-  let fragment = `Available CSS classes (use these, never write inline styles):
-Layout: container, stack, stack-sm, stack-lg, cluster, sidebar, grid-2, grid-3, grid-4
-Typography: prose, heading-xl, heading-lg, heading-md, heading-sm, text-muted, text-mono, code-inline, code-block, blockquote, label
-Components: card, card-header, card-body, card-footer, data-table, data-table-striped
-Badges: badge, badge-primary, badge-success, badge-warning, badge-error, badge-neutral
-Callouts: callout, callout-info, callout-warning, callout-error, callout-success, callout-tip
-Dividers: divider, divider-dashed
-Utilities: mt-auto, text-right, text-center, truncate, visually-hidden`;
+function groupClassesByCategory(classes: string[]): string {
+  const categories: Record<string, string[]> = {
+    Layout: [],
+    Typography: [],
+    Components: [],
+    Badges: [],
+    Callouts: [],
+    Dividers: [],
+    Utilities: []
+  };
 
-  // Note: For a real implementation, we would truncate if maxTokens is specified,
-  // but for the static fragment above, it's already short enough.
+  for (const cls of classes) {
+    if (cls.match(/^(container|stack|cluster|sidebar|grid)/)) categories.Layout.push(cls);
+    else if (cls.match(/^(prose|heading|text|code|blockquote|label)/)) categories.Typography.push(cls);
+    else if (cls.match(/^(card|data-table)/)) categories.Components.push(cls);
+    else if (cls.startsWith('badge')) categories.Badges.push(cls);
+    else if (cls.startsWith('callout')) categories.Callouts.push(cls);
+    else if (cls.startsWith('divider')) categories.Dividers.push(cls);
+    else categories.Utilities.push(cls);
+  }
+
+  return Object.entries(categories)
+    .filter(([_, items]) => items.length > 0)
+    .map(([cat, items]) => `${cat}: ${items.join(', ')}`)
+    .join('\n');
+}
+
+export function vocabularyToPromptFragment(contract: CSSContract, maxTokens?: number): string {
+  const lines = groupClassesByCategory(contract.classes);
+  let fragment = `Available CSS classes (use these, never write inline styles):\n${lines}`;
+
+  if (maxTokens) {
+    // Rough estimate: 4 chars per token
+    const maxChars = maxTokens * 4;
+    if (fragment.length > maxChars) {
+      fragment = fragment.slice(0, maxChars) + '... (truncated)';
+    }
+  }
+
   return fragment;
 }

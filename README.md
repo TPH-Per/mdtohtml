@@ -4,10 +4,31 @@ A CLI-first toolkit that gives AI agents a shared contract for generating struct
 
 ## Quickstart
 
+### Installation & Build
+
+Because this tool relies on a built stylesheet contract, make sure you install dependencies and build it first (or install it globally once built):
+
 ```bash
-npm install -g llm-html-kit
+git clone https://github.com/TPH-Per/mdtohtml.git
+cd mdtohtml
+pnpm install
+pnpm build
+```
+
+Alternatively, you can link it globally for your agents to use:
+```bash
+npm install -g .
+```
+
+### Project Setup
+
+Go to your project directory and initialize the configuration for your preferred AI agent:
+
+```bash
 cd your-project
 llm-html init --provider claude
+# Or for gemini: llm-html init --provider gemini
+# Or for copilot: llm-html init --provider copilot
 ```
 
 ## Features

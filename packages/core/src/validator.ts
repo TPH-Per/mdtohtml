@@ -26,6 +26,12 @@ export interface ValidationResult {
   warnings: ValidationWarning[];
 }
 
+function offsetToLineCol(html: string, offset: number): { line: number; column: number } {
+  if (offset < 0) return { line: 1, column: 1 };
+  const lines = html.slice(0, offset).split('\n');
+  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
+}
+
 export async function validateHTML(
   html: string,
   contract: CSSContract,
@@ -62,10 +68,12 @@ export async function validateHTML(
   if (rules.noInlineStyles !== false) {
     const styleBlocks = root.querySelectorAll('style');
     for (const style of styleBlocks) {
+      const offset = html.indexOf(style.outerHTML);
+      const { line, column } = offsetToLineCol(html, offset);
       errors.push({
         type: 'inline-style',
-        line: 1, // rough estimate without full source mapping
-        column: 1,
+        line,
+        column,
         message: 'Found <style> block, which is forbidden.',
         snippet: style.toString().substring(0, 50) + '...'
       });
@@ -81,10 +89,12 @@ export async function validateHTML(
   for (const el of elements) {
     // Check style=""
     if (rules.noInlineStyles !== false && el.hasAttribute('style')) {
+      const offset = html.indexOf(el.outerHTML);
+      const { line, column } = offsetToLineCol(html, offset);
       errors.push({
         type: 'inline-style',
-        line: 1,
-        column: 1,
+        line,
+        column,
         message: 'Found inline style attribute.',
         snippet: `<${el.tagName} style="${el.getAttribute('style')}">`
       });
