@@ -1,7 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
 
 /**
  * Resolves the path to @llm-html-kit/stylesheet/dist/styles.css.
@@ -21,21 +19,14 @@ export async function resolveStylesheetPath(): Promise<string> {
     return localPath;
   } catch {}
 
-  // 2. Global install — use createRequire for ESM/CJS compat
+  // 2. Global install — use require.resolve
   try {
-    const _require = createRequire(
-      typeof __filename !== 'undefined'
-        ? __filename
-        : fileURLToPath(import.meta.url)
-    );
-    return _require.resolve('@llm-html-kit/stylesheet/dist/styles.css');
+    return require.resolve('@llm-html-kit/stylesheet/dist/styles.css');
   } catch {}
 
   // 3. Monorepo workspace sibling (dev environment)
   const monorepoPath = path.resolve(
-    typeof __dirname !== 'undefined'
-      ? __dirname
-      : path.dirname(fileURLToPath(import.meta.url)),
+    __dirname,
     '../../../../stylesheet/dist/styles.css'
   );
   try {
