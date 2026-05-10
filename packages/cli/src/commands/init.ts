@@ -9,6 +9,7 @@ import {
   buildGeminiSystemPrompt,
   buildCopilotInstructions,
 } from '@llm-html-kit/prompt-builder';
+import { resolveStylesheetPath } from '../utils/resolve-stylesheet.js';
 
 const CONFIG_TEMPLATE = (provider: string, outputDir: string) => `import { defineConfig } from 'llm-html-kit';
 
@@ -25,38 +26,6 @@ export default defineConfig({
 });
 `;
 
-async function resolveStylesheetPath(): Promise<string> {
-  // Try local node_modules first
-  const localPath = path.resolve(
-    process.cwd(),
-    'node_modules/@llm-html-kit/stylesheet/dist/styles.css'
-  );
-  try {
-    await fs.access(localPath);
-    return localPath;
-  } catch {}
-  // Try global npm
-  try {
-    return require.resolve('@llm-html-kit/stylesheet/dist/styles.css');
-  } catch {}
-  
-  // Try monorepo local resolution (for dev/testing)
-  const monorepoPath = path.resolve(
-    __dirname,
-    '../../../stylesheet/dist/styles.css'
-  );
-  try {
-    await fs.access(monorepoPath);
-    return monorepoPath;
-  } catch {}
-
-  throw new Error(
-    'Cannot find @llm-html-kit/stylesheet/dist/styles.css.\\n' +
-    'Run: pnpm turbo build   (in monorepo)\\n' +
-    '  or: npm install -g llm-html-kit   (global install)'
-  );
-}
-
 export async function initCommand(options: {
   provider: 'claude' | 'gemini' | 'copilot';
   outputDir: string;
@@ -71,7 +40,7 @@ export async function initCommand(options: {
     try {
       await fs.access(configPath);
       console.error(
-        '✗ llm-html.config.ts already exists. Use --force to overwrite.'
+        '\u2717 llm-html.config.ts already exists. Use --force to overwrite.'
       );
       process.exit(1);
     } catch {}
@@ -82,12 +51,12 @@ export async function initCommand(options: {
   try {
     stylesheetPath = await resolveStylesheetPath();
   } catch (err: any) {
-    console.error('✗ ' + err.message);
+    console.error('\u2717 ' + err.message);
     process.exit(1);
   }
 
   // 3. Load contract
-  const contract = await loadContract(stylesheetPath);
+  const contract = await loadContract(stylesheetPath!);
   const classCount = contract.classes.length;
 
   // 4. Build instruction content
@@ -95,16 +64,17 @@ export async function initCommand(options: {
   let instructionFile: string;
 
   if (provider === 'claude') {
-    instructionContent = '\\n---\\n' + buildClaudeSystemPrompt(contract, {
+    // Fix: use actual newlines, not double-escaped \\n
+    instructionContent = '\n---\n' + buildClaudeSystemPrompt(contract, {
       maxVocabularyTokens: 600,
       includeExample: true,
-    }) + '\\n';
+    }) + '\n';
     instructionFile = path.join(cwd, 'CLAUDE.md');
   } else if (provider === 'gemini') {
-    instructionContent = '\\n---\\n' + buildGeminiSystemPrompt(contract, {
+    instructionContent = '\n---\n' + buildGeminiSystemPrompt(contract, {
       maxVocabularyTokens: 600,
       includeExample: true,
-    }) + '\\n';
+    }) + '\n';
     instructionFile = path.join(cwd, 'GEMINI.md');
   } else {
     instructionContent = buildCopilotInstructions(contract, {
@@ -137,7 +107,7 @@ export async function initCommand(options: {
   // 7. Copy styles.css to outputDir
   await fs.mkdir(path.join(cwd, outputDir), { recursive: true });
   const destCssPath = path.join(cwd, outputDir, 'styles.css');
-  await fs.copyFile(stylesheetPath, destCssPath);
+  await fs.copyFile(stylesheetPath!, destCssPath);
 
   // 8. Print summary
   const instrTokens = Math.round(instructionContent.length / 4);
@@ -145,10 +115,10 @@ export async function initCommand(options: {
   const relDestCss = path.relative(cwd, destCssPath);
 
   console.log('');
-  console.log('  ✓ Created llm-html.config.ts');
-  console.log(`  ✓ ${instructionAction} ${relInstructionFile} (~${instrTokens} tokens)`);
-  console.log(`  ✓ Copied styles.css → ${relDestCss}`);
-  console.log(`  ✓ ${classCount} CSS classes in contract (checksum: ${contract.checksum.slice(0, 8)})`);
+  console.log('  \u2713 Created llm-html.config.ts');
+  console.log(`  \u2713 ${instructionAction} ${relInstructionFile} (~${instrTokens} tokens)`);
+  console.log(`  \u2713 Copied styles.css \u2192 ${relDestCss}`);
+  console.log(`  \u2713 ${classCount} CSS classes in contract (checksum: ${contract.checksum.slice(0, 8)})`);
   console.log('');
 
   const nextCmd = provider === 'claude'
