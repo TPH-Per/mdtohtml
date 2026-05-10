@@ -3,6 +3,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import chokidar from 'chokidar';
 import { WebSocketServer, WebSocket } from 'ws';
+import { loadConfig } from '../utils/config-loader.js';
+import chalk from 'chalk';
+import ora from 'ora';
 
 const INJECT_SCRIPT = `
 <script>
@@ -14,9 +17,10 @@ const INJECT_SCRIPT = `
 </body>
 `;
 
-export async function serveCommand(options: { dir: string; port: number }) {
+export async function serveCommand(options: { dir: string; port: number; config?: string }) {
+  const config = await loadConfig(options.config);
   const port = options.port || 3000;
-  const dir = options.dir || './output';
+  const dir = options.dir || config.outputDir || './output';
 
   const server = http.createServer(async (req, res) => {
     let filePath = path.join(dir, req.url === '/' ? 'index.html' : req.url || '');
@@ -57,8 +61,8 @@ export async function serveCommand(options: { dir: string; port: number }) {
     persistent: true
   });
 
-  watcher.on('change', path => {
-    console.log(`File changed: ${path}`);
+  watcher.on('change', filePath => {
+    console.log(`${chalk.gray('[serve]')} File changed: ${chalk.cyan(path.relative(dir, filePath))}`);
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send('reload');
@@ -67,7 +71,9 @@ export async function serveCommand(options: { dir: string; port: number }) {
   });
 
   server.listen(port, () => {
-    console.log(`Serving ${dir} on http://localhost:${port}`);
-    console.log(`Watching for file changes...`);
+    console.log(chalk.bold(`\nllm-html serve`));
+    console.log(`  ${chalk.cyan('➜')}  Local:   ${chalk.bold(`http://localhost:${port}`)}`);
+    console.log(`  ${chalk.cyan('➜')}  Serving: ${chalk.bold(dir)}`);
+    console.log(`  ${chalk.gray('Watching for file changes...')}\n`);
   });
 }

@@ -2,87 +2,103 @@ import fs from 'fs/promises';
 import path from 'path';
 import { countTokens, validateHTML, loadContract, compareTokens } from '@llm-html-kit/core';
 import { resolveStylesheetPath } from '../utils/resolve-stylesheet.js';
+import { loadConfig } from '../utils/config-loader.js';
+import Table from 'cli-table3';
+import chalk from 'chalk';
+import ora from 'ora';
 
 export async function auditCommand(
   file: string,
-  options: { format: string; validate?: boolean; compare?: string }
+  options: { format: string; validate?: boolean; compare?: string; config?: string }
 ) {
+  const spinner = ora(`Auditing ${file}...`).start();
+  
   try {
+    const config = await loadConfig(options.config);
     const html = await fs.readFile(file, 'utf-8');
     const tokens = await countTokens(html);
 
     let validationResult = null;
+    const shouldValidate = options.validate ?? config.validation !== undefined;
 
-    if (options.validate) {
-      // Resolve stylesheet via shared util (works local, global, and monorepo)
+    if (shouldValidate) {
+      spinner.text = 'Validating against CSS contract...';
+      
       let cssPath: string;
       try {
-        cssPath = await resolveStylesheetPath();
+        cssPath = config.stylesheet 
+          ? path.resolve(process.cwd(), config.stylesheet) 
+          : await resolveStylesheetPath();
       } catch (e: any) {
-        console.error('Failed to locate CSS contract:', e.message);
+        spinner.fail(`Failed to locate CSS contract: ${e.message}`);
         process.exit(1);
       }
 
-      let contract;
-      try {
-        contract = await loadContract(cssPath!);
-      } catch (e) {
-        console.error('Failed to load CSS contract for validation:', e);
-        process.exit(1);
-      }
-
-      validationResult = await validateHTML(html, contract!, {
-        noInlineStyles: true,
-        requireLinkTag: true,
-        allowedClasses: 'auto',
+      const contract = await loadContract(cssPath);
+      validationResult = await validateHTML(html, contract, {
+        noInlineStyles: config.validation?.noInlineStyles ?? true,
+        requireLinkTag: config.validation?.requireLinkTag ?? true,
+        allowedClasses: config.validation?.allowedClasses ?? 'auto',
+        noTailwindClasses: config.validation?.noTailwindClasses ?? false,
       });
     }
 
+    spinner.stop();
+
     if (options.format === 'json') {
       const output: any = { tokens };
-      if (validationResult) {
-        output.validation = validationResult;
-      }
+      if (validationResult) output.validation = validationResult;
       if (options.compare) {
         const beforeHtml = await fs.readFile(options.compare, 'utf-8');
         output.diff = await compareTokens(beforeHtml, html);
       }
       console.log(JSON.stringify(output, null, 2));
     } else {
-      console.log(`
-\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
-\u2502  Token Audit: ${file}
-\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524
-\u2502  Total tokens        \u2502  ${tokens.raw.toLocaleString().padEnd(32)}\u2502
-\u2502  Structure tokens    \u2502  ${tokens.structure.toLocaleString().padEnd(32)}\u2502
-\u2502  Style tokens        \u2502  ${tokens.style.toLocaleString().padEnd(24)} \u2190 eliminable\u2502
-\u2502  Savings if external \u2502  ${tokens.savings.toLocaleString().padEnd(32)}\u2502
-\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
-      `);
+      const table = new Table({
+        head: [chalk.cyan('Metric'), chalk.cyan('Value')],
+        colWidths: [25, 35]
+      });
+
+      table.push(
+        ['Total tokens', tokens.raw.toLocaleString()],
+        ['Structure tokens', tokens.structure.toLocaleString()],
+        ['Style tokens', chalk.yellow(`${tokens.style.toLocaleString()} (eliminable)`)],
+        ['Savings if external', chalk.green(tokens.savings.toLocaleString())]
+      );
+
+      console.log(chalk.bold(`\nToken Audit: ${file}`));
+      console.log(table.toString());
 
       if (options.compare) {
         const beforeHtml = await fs.readFile(options.compare, 'utf-8');
         const diff = await compareTokens(beforeHtml, html);
-        console.log(`\nComparison vs ${options.compare}:`);
-        console.log(`  Savings: ${diff.savingsTokens.toLocaleString()} tokens (${diff.savingsPercent}%)`);
+        console.log(chalk.bold(`\nComparison vs ${options.compare}:`));
+        console.log(`  Savings: ${chalk.green(diff.savingsTokens.toLocaleString())} tokens (${chalk.bold(diff.savingsPercent)}%)`);
       }
 
       if (validationResult) {
-        console.log(`\nValidation: ${validationResult.passed ? 'PASSED \u2705' : 'FAILED \u274c'}`);
-        validationResult.errors.forEach(e =>
-          console.log(`  - [ERROR] Line ${e.line}, Col ${e.column}: ${e.message} (${e.type})`)
-        );
-        validationResult.warnings.forEach(w =>
-          console.log(`  - [WARN]  ${w.message}`)
-        );
+        console.log(`\nValidation: ${validationResult.passed ? chalk.green('PASSED ✅') : chalk.red('FAILED ❌')}`);
+        
+        if (validationResult.errors.length > 0) {
+          console.log(chalk.red('\nErrors:'));
+          validationResult.errors.forEach(e => {
+            console.log(chalk.red(`  - [${e.type}] Line ${e.line}, Col ${e.column}: ${e.message}`));
+            if (e.snippet) console.log(chalk.gray(`    Snippet: ${e.snippet}`));
+          });
+        }
+
+        if (validationResult.warnings.length > 0) {
+          console.log(chalk.yellow('\nWarnings:'));
+          validationResult.warnings.forEach(w => console.log(chalk.yellow(`  - ${w.message}`)));
+        }
       }
     }
 
-    if (options.validate && validationResult && !validationResult.passed) {
+    if (shouldValidate && validationResult && !validationResult.passed) {
       process.exit(1);
     }
   } catch (error: any) {
-    console.error(`Failed to audit ${file}: ${error.message}`);
+    spinner.fail(`Audit failed: ${error.message}`);
     process.exit(1);
   }
 }

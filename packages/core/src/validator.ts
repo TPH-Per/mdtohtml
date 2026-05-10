@@ -1,5 +1,6 @@
 import { parse } from 'node-html-parser';
-import type { CSSContract } from './contract';
+import type { CSSContract } from './contract.js';
+import { STYLE_BLOCK_RE, STYLE_ATTR_RE, TAILWIND_RE } from './constants.js';
 
 export interface ValidationRules {
   noInlineStyles?: boolean;
@@ -66,9 +67,7 @@ export async function validateHTML(
 
   // Check <style> blocks
   if (rules.noInlineStyles !== false) {
-    let searchFrom = 0;
-    const styleBlockRE = /<style[^>]*>[\s\S]*?<\/style>/gi;
-    for (const m of html.matchAll(styleBlockRE)) {
+    for (const m of html.matchAll(STYLE_BLOCK_RE)) {
       const { line, column } = offsetToLineCol(html, m.index ?? 0);
       errors.push({
         type: 'inline-style',
@@ -82,8 +81,7 @@ export async function validateHTML(
 
   // Check style="" attributes using regex on raw HTML (not DOM traversal)
   if (rules.noInlineStyles !== false) {
-    const inlineStyleRE = /style\s*=\s*(?:"[^"]*"|'[^']*')/gi;
-    for (const m of html.matchAll(inlineStyleRE)) {
+    for (const m of html.matchAll(STYLE_ATTR_RE)) {
       const { line, column } = offsetToLineCol(html, m.index ?? 0);
       // Find enclosing tag for snippet
       const tagStart = html.lastIndexOf('<', m.index);
@@ -119,8 +117,7 @@ export async function validateHTML(
           }
           
           if (rules.noTailwindClasses) {
-            const tailwindRE = /^(text|bg|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|w|h|flex|grid|gap|rounded|shadow|border|ring|opacity|font|leading|tracking|z|top|right|bottom|left|inset|overflow|cursor|pointer|select|resize|appearance|outline|sr)-/;
-            if (tailwindRE.test(cls) && !allowedClasses.has(cls)) {
+            if (TAILWIND_RE.test(cls) && !allowedClasses.has(cls)) {
               warnings.push({
                 message: `Possible Tailwind class '${cls}' on <${el.rawTagName}> — use contract classes instead`
               });

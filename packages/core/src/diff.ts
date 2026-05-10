@@ -1,4 +1,4 @@
-import { TokenDiff } from './tokenizer';
+import { TokenDiff } from './tokenizer.js';
 
 export function formatDiffReport(diff: TokenDiff): string {
   return `

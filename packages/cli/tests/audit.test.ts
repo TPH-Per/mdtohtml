@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { execa } from 'execa';
 
-const CLI_BIN = join(__dirname, '../dist/index.js');
+const CLI_BIN = join(__dirname, '../dist/cli.js');
 
 async function writeTmpHtml(dir: string, name: string, content: string) {
   // Ensure styles.css exists alongside HTML

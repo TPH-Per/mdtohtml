@@ -1,4 +1,5 @@
 import { get_encoding } from '@dqbd/tiktoken';
+import { STYLE_BLOCK_RE, STYLE_ATTR_RE } from './constants.js';
 
 export interface TokenCount {
   raw: number;
@@ -39,11 +40,9 @@ export async function countTokens(
 
   // Collect all style noise: <style>...</style> and style="..." attributes
   let styleTokens = 0;
-  const styleBlockRE = /<style[^>]*>[\s\S]*?<\/style>/gi;
-  const styleAttrRE  = / style\s*=\s*(?:"[^"]*"|'[^']*')/gi;
 
-  for (const m of html.matchAll(styleBlockRE)) styleTokens += count(m[0]);
-  for (const m of html.matchAll(styleAttrRE))  styleTokens += count(m[0]);
+  for (const m of html.matchAll(STYLE_BLOCK_RE)) styleTokens += count(m[0]);
+  for (const m of html.matchAll(STYLE_ATTR_RE))  styleTokens += count(m[0]);
 
   const structure = Math.max(0, raw - styleTokens);
   return { raw, structure, style: styleTokens, savings: styleTokens };

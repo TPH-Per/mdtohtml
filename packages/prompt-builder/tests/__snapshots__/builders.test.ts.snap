@@ -3,57 +3,48 @@
 exports[`Claude prompt builder > should match snapshot 1`] = `
 "## HTML Output Contract
 
-When generating HTML documents, you MUST follow these rules without exception:
+You are operating in a project that uses llm-html-kit for structured HTML generation.
 
-1. **Always include this exact link tag** in the <head>:
-   \`<link rel="stylesheet" href="./styles.css">\`
+### Rules (non-negotiable)
+1. ALWAYS include \`<link rel="stylesheet" href="./styles.css">\` in \`<head>\`.
+2. NEVER write \`style=""\` attributes on any element.
+3. NEVER add \`<style>\` blocks.
+4. NEVER use Tailwind utility classes (text-sm, px-4, bg-blue-500, etc.).
+5. Use ONLY the CSS classes listed in the vocabulary below.
+6. Use semantic HTML5: <main>, <section>, <article>, <header>, <footer>, <nav>, <aside>.
 
-2. **Never write inline styles**. Do not use \`style=""\` attributes or \`<style>\` blocks.
-
-3. **Use only the pre-defined CSS classes** listed below. These classes map to a shared
-   stylesheet. Using them correctly is essential — every class you invent wastes tokens and
-   breaks visual consistency.
-
-4. **Structure**: wrap all content in semantic HTML5 tags. Use \`<main>\`, \`<section>\`,
-   \`<article>\`, \`<aside>\`, \`<header>\`, \`<footer>\` as appropriate.
-
-### Available CSS Classes
-
+### CSS Vocabulary
 Available CSS classes (use these, never write inline styles):
 Typography: prose, heading-xl
 Components: card, data-table
 Callouts: callout-warning
 
-### Example Output Structure
-
+### Correct Structure
 \`\`\`html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Document Title</title>
+  <title>Document</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <main class="container stack">
-    <h1 class="heading-xl">Report Title</h1>
+    <h1 class="heading-xl">Title</h1>
     <div class="card">
-      <div class="card-header"><h2 class="heading-md">Section</h2></div>
+      <div class="card-header heading-md">Section</div>
       <div class="card-body prose">
-        <p>Content here.</p>
-        <table class="data-table data-table-striped">...</table>
+        <p>Paragraph text here.</p>
       </div>
-    </div>
-    <div class="callout callout-warning">
-      <p>Important note.</p>
     </div>
   </main>
 </body>
 </html>
 \`\`\`
 
-Violation of any rule above (inline styles, missing link tag, invented classes) will cause
-validation failure and your output will be rejected."
+### Validation
+After generating HTML, the user will run: \`llm-html audit <file> --validate\`
+If it reports errors, fix ALL of them before considering the task complete."
 `;
 
 exports[`Gemini prompt builder > should match snapshot 1`] = `
@@ -61,39 +52,36 @@ exports[`Gemini prompt builder > should match snapshot 1`] = `
 
 When generating HTML documents, follow these strict rules:
 
-1. **Always include this exact link tag** in the <head>:
-   \`<link rel="stylesheet" href="./styles.css">\`
+### Rules (non-negotiable)
+1. ALWAYS include \`<link rel="stylesheet" href="./styles.css">\` in \`<head>\`.
+2. NEVER write \`style=""\` attributes on any element.
+3. NEVER add \`<style>\` blocks.
+4. NEVER use Tailwind utility classes (text-sm, px-4, bg-blue-500, etc.).
+5. Use ONLY the CSS classes listed in the vocabulary below.
+6. Use semantic HTML5: <main>, <section>, <article>, <header>, <footer>, <nav>, <aside>.
 
-2. **Never write inline styles**. Do not use \`style=""\` attributes or \`<style>\` blocks.
-
-3. **Use only the pre-defined CSS classes** listed below. These classes map to a shared stylesheet.
-
-4. **Structure**: wrap all content in semantic HTML5 tags.
-
-### Available CSS Classes
-
+### CSS Vocabulary
 Available CSS classes (use these, never write inline styles):
 Typography: prose, heading-xl
 Components: card, data-table
 Callouts: callout-warning
 
-### Example Output Structure
-
+### Correct Structure
 \`\`\`html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Document Title</title>
+  <title>Document</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <main class="container stack">
-    <h1 class="heading-xl">Report Title</h1>
+    <h1 class="heading-xl">Title</h1>
     <div class="card">
-      <div class="card-header"><h2 class="heading-md">Section</h2></div>
+      <div class="card-header heading-md">Section</div>
       <div class="card-body prose">
-        <p>Content here.</p>
+        <p>Paragraph text here.</p>
       </div>
     </div>
   </main>

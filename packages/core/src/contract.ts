@@ -1,6 +1,7 @@
 import { parse, Rule, ClassSelector, Declaration } from 'css-tree';
 import * as fs from 'fs/promises';
 import crypto from 'crypto';
+import { CATEGORY_PATTERNS } from './constants.js';
 
 export interface CSSContract {
   classes: string[];
@@ -71,12 +72,12 @@ export function groupClassesByCategory(classes: string[]): string {
   };
 
   for (const cls of classes) {
-    if (cls.match(/^(container|stack|cluster|sidebar|grid)/)) categories.Layout.push(cls);
-    else if (cls.match(/^(prose|heading|text|code|blockquote|label)/)) categories.Typography.push(cls);
-    else if (cls.match(/^(card|data-table)/)) categories.Components.push(cls);
-    else if (cls.startsWith('badge')) categories.Badges.push(cls);
-    else if (cls.startsWith('callout')) categories.Callouts.push(cls);
-    else if (cls.startsWith('divider')) categories.Dividers.push(cls);
+    if (cls.match(CATEGORY_PATTERNS.Layout)) categories.Layout.push(cls);
+    else if (cls.match(CATEGORY_PATTERNS.Typography)) categories.Typography.push(cls);
+    else if (cls.match(CATEGORY_PATTERNS.Components)) categories.Components.push(cls);
+    else if (cls.match(CATEGORY_PATTERNS.Badges)) categories.Badges.push(cls);
+    else if (cls.match(CATEGORY_PATTERNS.Callouts)) categories.Callouts.push(cls);
+    else if (cls.match(CATEGORY_PATTERNS.Dividers)) categories.Dividers.push(cls);
     else categories.Utilities.push(cls);
   }
 
